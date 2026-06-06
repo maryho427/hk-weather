@@ -1,9 +1,7 @@
 /**
  * Design: "Coastal Luminance" — Soft Modernism
- * Palette: Warm sky gradient bg, white cards, sky-blue + amber accents
- * Fonts: Nunito (UI) + Roboto Mono (temperature data)
- * Layout: Full-bleed hero with current conditions, then 7-day forecast grid
- * Data: HKO Open Data API — https://data.weather.gov.hk/weatherAPI/opendata/weather.php
+ * Bilingual: English (en) & Traditional Chinese (tc) via context
+ * Data: HKO Open Data API with lang parameter support
  */
 
 import { useEffect, useState, useCallback } from "react";
@@ -16,7 +14,9 @@ import {
   AlertTriangle,
   CloudRain,
   Info,
+  Globe,
 } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -174,6 +174,7 @@ function DayCard({
   const today = isToday(forecast.forecastDate);
   const { day, month } = formatDate(forecast.forecastDate);
   const psr = getPSRStyle(forecast.PSR);
+  const { t } = useLanguage();
 
   return (
     <div
@@ -194,7 +195,7 @@ function DayCard({
           className={`absolute top-2 right-2 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider
             ${selected ? "bg-white/20 text-white" : "bg-sky-400 text-white"}`}
         >
-          Today
+          {t("forecast.today")}
         </span>
       )}
 
@@ -267,6 +268,7 @@ function DayCard({
 function DetailPanel({ forecast }: { forecast: DayForecast }) {
   const { fullDate } = formatDate(forecast.forecastDate);
   const psr = getPSRStyle(forecast.PSR);
+  const { t } = useLanguage();
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 animate-slide-up">
@@ -280,7 +282,7 @@ function DetailPanel({ forecast }: { forecast: DayForecast }) {
               <span className="text-xl text-slate-400">°C</span>
             </div>
             <div className="font-mono-data text-base text-slate-400 font-medium">
-              Low {forecast.forecastMintemp.value}°C
+              {t("detail.temperature")} {forecast.forecastMintemp.value}°C
             </div>
           </div>
         </div>
@@ -296,28 +298,28 @@ function DetailPanel({ forecast }: { forecast: DayForecast }) {
             {[
               {
                 icon: <Wind size={14} className="text-sky-500" />,
-                label: "Wind",
+                label: t("detail.wind"),
                 value: forecast.forecastWind,
                 bg: "bg-sky-50",
                 labelColor: "text-sky-600",
               },
               {
                 icon: <Droplets size={14} className="text-blue-500" />,
-                label: "Humidity",
+                label: t("detail.humidity"),
                 value: `${forecast.forecastMinrh.value}–${forecast.forecastMaxrh.value}%`,
                 bg: "bg-blue-50",
                 labelColor: "text-blue-600",
               },
               {
                 icon: <Thermometer size={14} className="text-amber-500" />,
-                label: "Temperature",
+                label: t("detail.temperature"),
                 value: `${forecast.forecastMintemp.value}°–${forecast.forecastMaxtemp.value}°C`,
                 bg: "bg-amber-50",
                 labelColor: "text-amber-600",
               },
               {
                 icon: <CloudRain size={14} className="text-rose-400" />,
-                label: "Rain Chance",
+                label: t("detail.rainChance"),
                 value: forecast.PSR,
                 bg: "bg-rose-50",
                 labelColor: "text-rose-500",
@@ -348,6 +350,7 @@ function DetailPanel({ forecast }: { forecast: DayForecast }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const { language, setLanguage, t } = useLanguage();
   const [forecastData, setForecastData] = useState<ForecastData | null>(null);
   const [currentWeather, setCurrentWeather] = useState<CurrentWeather | null>(null);
   const [loading, setLoading] = useState(true);
@@ -355,13 +358,15 @@ export default function Home() {
   const [selectedDay, setSelectedDay] = useState<DayForecast | null>(null);
   const [lastUpdated, setLastUpdated] = useState("");
 
+  const langParam = language === "tc" ? "tc" : "en";
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const [fndRes, rhrRes] = await Promise.allSettled([
-        fetch(`${API_BASE}?dataType=fnd&lang=en`),
-        fetch(`${API_BASE}?dataType=rhrread&lang=en`),
+        fetch(`${API_BASE}?dataType=fnd&lang=${langParam}`),
+        fetch(`${API_BASE}?dataType=rhrread&lang=${langParam}`),
       ]);
 
       if (fndRes.status === "fulfilled" && fndRes.value.ok) {
@@ -378,11 +383,11 @@ export default function Home() {
         setCurrentWeather(await rhrRes.value.json());
       }
     } catch (err) {
-      setError("Unable to load weather data. Please check your connection and try again.");
+      setError(t("error.message"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [langParam, t]);
 
   useEffect(() => {
     fetchData();
@@ -391,7 +396,7 @@ export default function Home() {
   }, [fetchData]);
 
   const centralTemp = currentWeather?.temperature?.data?.find(
-    (d) => d.place === "Hong Kong Observatory"
+    (d) => d.place === "Hong Kong Observatory" || d.place === "香港天文台"
   );
   const centralHumidity = currentWeather?.humidity?.data?.[0];
   const uvIndex = currentWeather?.uvindex?.data?.[0];
@@ -407,12 +412,16 @@ export default function Home() {
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center shadow-sm">
-                <span className="text-white text-[10px] font-black tracking-tight">HKO</span>
+                <span className="text-white text-[10px] font-black tracking-tight">
+                  {t("header.hko")}
+                </span>
               </div>
               <div>
-                <h1 className="font-black text-slate-800 text-sm leading-tight">Hong Kong Weather</h1>
+                <h1 className="font-black text-slate-800 text-sm leading-tight">
+                  {t("header.title")}
+                </h1>
                 <p className="text-[10px] text-slate-400 leading-tight">
-                  Live data · Hong Kong Observatory
+                  {t("header.subtitle")}
                 </p>
               </div>
             </div>
@@ -420,9 +429,34 @@ export default function Home() {
             <div className="flex items-center gap-2">
               {lastUpdated && (
                 <span className="hidden md:block text-[11px] text-slate-400 font-medium">
-                  Updated {lastUpdated}
+                  {t("updated")} {lastUpdated}
                 </span>
               )}
+
+              {/* Language Toggle */}
+              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+                <button
+                  onClick={() => setLanguage("en")}
+                  className={`px-2.5 py-1 rounded text-xs font-bold transition-all ${
+                    language === "en"
+                      ? "bg-white text-sky-600 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  EN
+                </button>
+                <button
+                  onClick={() => setLanguage("tc")}
+                  className={`px-2.5 py-1 rounded text-xs font-bold transition-all ${
+                    language === "tc"
+                      ? "bg-white text-sky-600 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  中文
+                </button>
+              </div>
+
               <button
                 onClick={fetchData}
                 disabled={loading}
@@ -431,7 +465,7 @@ export default function Home() {
                   active:scale-95"
               >
                 <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
-                <span className="hidden sm:inline">Refresh</span>
+                <span className="hidden sm:inline">{t("header.refresh")}</span>
               </button>
               <a
                 href="https://www.hko.gov.hk"
@@ -480,7 +514,7 @@ export default function Home() {
             {/* Left: Current conditions */}
             <div className="flex-1 text-white animate-slide-up">
               <p className="text-sky-200 text-xs font-bold uppercase tracking-[0.2em] mb-1">
-                Current Conditions · Hong Kong
+                {t("hero.label")}
               </p>
               <div className="flex items-end gap-5 mb-3">
                 {loading ? (
@@ -505,7 +539,7 @@ export default function Home() {
                   )}
                   {uvIndex && (
                     <div className="flex items-center gap-1.5 text-amber-200">
-                      <span className="text-xs font-bold">UV</span>
+                      <span className="text-xs font-bold">{t("uv")}</span>
                       <span className="font-mono-data text-sm font-semibold">
                         {uvIndex.value} · {uvIndex.desc}
                       </span>
@@ -559,7 +593,7 @@ export default function Home() {
             <div>
               <p className="font-bold text-sm">{error}</p>
               <button onClick={fetchData} className="text-xs underline mt-0.5 opacity-70 hover:opacity-100">
-                Try again
+                {t("error.retry")}
               </button>
             </div>
           </div>
@@ -568,9 +602,9 @@ export default function Home() {
         {/* 7-Day Forecast Grid */}
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-black text-slate-800">7-Day Forecast</h2>
+            <h2 className="text-xl font-black text-slate-800">{t("forecast.title")}</h2>
             <span className="text-xs text-slate-400 font-medium hidden sm:block">
-              Select a day for details
+              {t("forecast.subtitle")}
             </span>
           </div>
 
@@ -605,7 +639,7 @@ export default function Home() {
         {/* Detail Panel */}
         {selectedDay && !loading && (
           <section>
-            <h2 className="text-xl font-black text-slate-800 mb-4">Detailed Forecast</h2>
+            <h2 className="text-xl font-black text-slate-800 mb-4">{t("detail.title")}</h2>
             <DetailPanel forecast={selectedDay} />
           </section>
         )}
@@ -613,7 +647,7 @@ export default function Home() {
         {/* Temperature Chart */}
         {forecastData && !loading && (
           <section>
-            <h2 className="text-xl font-black text-slate-800 mb-4">Temperature Overview</h2>
+            <h2 className="text-xl font-black text-slate-800 mb-4">{t("chart.title")}</h2>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 sm:p-6 animate-slide-up"
               style={{ animationDelay: "180ms" }}>
               <div className="space-y-3">
@@ -631,7 +665,7 @@ export default function Home() {
                     >
                       <div className="w-20 sm:w-24 shrink-0">
                         <span className={`text-xs font-bold ${today ? "text-sky-500" : "text-slate-500"}`}>
-                          {today ? "Today" : day.week.slice(0, 3)}
+                          {today ? t("forecast.today") : day.week.slice(0, 3)}
                         </span>
                         <span className="text-xs text-slate-400 ml-1">
                           {d} {month}
@@ -667,7 +701,7 @@ export default function Home() {
         {/* General Situation */}
         {forecastData?.generalSituation && !loading && (
           <section>
-            <h2 className="text-xl font-black text-slate-800 mb-4">General Weather Situation</h2>
+            <h2 className="text-xl font-black text-slate-800 mb-4">{t("situation.title")}</h2>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 sm:p-6 animate-slide-up"
               style={{ animationDelay: "220ms" }}>
               <div className="flex gap-3">
@@ -686,7 +720,7 @@ export default function Home() {
         <div className="container py-5">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400">
             <p>
-              Weather data provided by{" "}
+              {t("footer.credit")}{" "}
               <a
                 href="https://www.hko.gov.hk"
                 target="_blank"
@@ -695,9 +729,9 @@ export default function Home() {
               >
                 Hong Kong Observatory
               </a>{" "}
-              Open Data API
+              {t("footer.api")}
             </p>
-            <p className="font-medium">Updates twice daily and when changes occur</p>
+            <p className="font-medium">{t("footer.update")}</p>
           </div>
         </div>
       </footer>
